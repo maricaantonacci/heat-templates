@@ -1,0 +1,38 @@
+heat_template_version: 2014-10-16
+
+description: Template to deploy Resource Group 
+
+parameters:
+  image:
+    type: string
+    default: "PRISMA-Ubuntu-14.04-x86_64"
+  key_name:
+    type: string
+    default: robot
+  
+
+resources:
+  proxy_node:
+    type: OS::Nova::Server
+    properties:
+          name: proxy
+          image: { get_param: image}
+          flavor: small
+          networks: [ {"network" : "a57813c5-c531-4233-a65e-35d99739cf56"} ]
+          key_name: { get_param: key_name }
+
+  nodes_group:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: 3
+      resource_def:
+        type: clusternode.yml
+        properties:
+          name: node-0%index%
+          image: { get_param: image}
+          flavor: small
+          network: "a57813c5-c531-4233-a65e-35d99739cf56"
+          key_name: { get_param: key_name}
+          volume_size: 5
+          mountpoint: "/srv/node"
+

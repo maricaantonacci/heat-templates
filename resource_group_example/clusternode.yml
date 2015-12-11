@@ -1,0 +1,68 @@
+heat_template_version: 2014-10-16
+description: Template to deploy a Resource Group
+
+parameters:
+  key_name:
+    type: string
+  name: 
+    type: string
+  image: 
+    type: string
+  flavor:
+    type: string
+  network: 
+    type: string
+  volume_size:
+    type: number
+  mountpoint: 
+    type: string
+
+resources:
+  volume:
+    type: OS::Cinder::Volume
+    properties:
+      size:
+        get_param: volume_size
+
+  volume_attachment:
+    type: OS::Cinder::VolumeAttachment
+    properties:
+      volume_id: { get_resource: volume }
+      instance_uuid: { get_resource: instance }
+      mountpoint: null
+
+  instance_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_param: network }
+      security_groups: ["default"]
+
+  instance:
+    type: OS::Nova::Server
+    properties:
+      name: {get_param: name}
+      image: {get_param: image}
+      flavor: {get_param: flavor}
+      key_name: {get_param: key_name}
+      networks: 
+        - port: { get_resource: instance_port }
+      user_data_format: RAW
+      user_data: 
+        str_replace:
+          template: { get_file: "nodeinit.sh" }
+          params:
+            volume_id: {get_resource: volume}
+            mountpoint: {get_param: mountpoint}
+            $wait_handle$: { get_resource: wait_condition_handle}
+
+  wait_condition:
+           type: AWS::CloudFormation::WaitCondition
+           depends_on: instance
+           properties:
+            Count: 1
+            Handle: { get_resource: wait_condition_handle }
+            Timeout: 3600
+
+  wait_condition_handle:
+           type: AWS::CloudFormation::WaitConditionHandle
+
