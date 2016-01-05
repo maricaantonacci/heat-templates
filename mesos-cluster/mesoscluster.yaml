@@ -1,0 +1,249 @@
+heat_template_version: 2014-10-16
+
+parameters:
+
+  ssh_key_name:
+    type: string
+    description: name of ssh key to be provisioned on our server
+    default: marica
+
+  network:
+    type: string
+    description: uuid/name of a network to use for ip addresses
+    default: fe82ef7b-4bb7-4c1e-b4ec-ec5c1b0c7333
+
+  server_image:
+    type: string
+    default: "Ubuntu 14.04.3 LTS (HEAT)"
+    description: glance image used to boot the server
+
+  image: 
+    type: string
+    default: "Ubuntu 14.04.3 LTS"
+
+  master_flavor:
+    type: string
+    default: medium
+    description: flavor to use when booting the server
+
+  number_of_masters:
+    type: number
+    description: how many mesos masters to spawn initially
+    default: 3
+
+  zookeeper_docker_image:
+    type: string
+    default: "marica/zookeeper"
+    description: "Docker image for Zookeeper Service"
+
+  mesos_master_docker_image:
+    type: string
+    default: "marica/mesos-master"
+    description: "Docker image for Mesos Master Node(s)"
+   
+  mesos_slave_docker_image:
+    type: string
+    default: "marica/mesos-slave"
+    description: "Docker image for Mesos Slave Nodes"
+
+  marathon_docker_image:
+    type: string
+    default: "marica/marathon"
+    description: "Docker image for Marathon Service"
+ 
+  marathon_framework_name:
+    type: string
+    default: "marathon"
+    description: "Marathon Framework name"
+
+  chronos_docker_image:
+    type: string
+    default: "marica/chronos"
+    description: "Docker image for Chronos Service"
+  
+  chronos_framework_name:
+    type: string
+    default: "chronos"
+    description: "Chronos Framework name"
+
+  slave_flavor:
+    type: string
+    default: small
+    description: flavor to use when booting the server
+
+  number_of_slaves:
+    type: number
+    description: how many mesos slaves to spawn initially
+    default: 1
+
+  executor_registration_timeout:
+    type: string
+    description: >
+      Amount of time to wait for an executor to register with the slave before
+      considering it hung and shutting it down
+    default: 5mins
+
+  wait_condition_timeout:
+    type: number
+    description: >
+      timeout for the Wait Conditions
+    default: 6000
+
+resources:
+  ######################################################################
+  #
+  # security groups.  we need to permit network traffic of various
+  # sorts.
+  #
+
+  secgroup_base:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      rules:
+        - protocol: icmp
+        - protocol: tcp
+          port_range_min: 22
+          port_range_max: 22
+
+  secgroup_mesos:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      rules:
+        - protocol: tcp
+          port_range_min: 2181
+          port_range_max: 2181
+        - protocol: tcp
+          port_range_min: 2888
+          port_range_max: 2888
+          remote_mode: remote_group_id
+        - protocol: tcp
+          port_range_min: 3888
+          port_range_max: 3888
+          remote_mode: remote_group_id
+        - protocol: tcp
+          port_range_min: 5050
+          port_range_max: 5050
+        - protocol: tcp
+          port_range_min: 8080
+          port_range_max: 8080
+        - protocol: tcp
+          port_range_min: 4400
+          port_range_max: 4400
+
+
+  ######################################################################
+  #
+  # Master SoftwareConfig.
+  #
+
+  write_params_master:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config: {get_file: master-init.sh}
+      inputs:
+        - name: MESOS_MASTERS_IPS
+          type: String
+        - name: CLUSTER_NAME
+          type: String
+        - name: QUORUM
+          type: String
+        - name: ZOOKEEPER_IMAGE
+          type: String
+        - name: MESOS_MASTER_IMAGE
+          type: String
+        - name: MARATHON_IMAGE
+          type: String
+        - name: MARATHON_FRAMEWORK_NAME
+          type: String
+        - name: CHRONOS_IMAGE
+          type: String
+        - name: CHRONOS_FRAMEWORK_NAME
+          type: String
+
+
+
+  ######################################################################
+  #
+  # Master SoftwareDeployment.
+  #
+
+  write_params_master_deployment:
+    type: OS::Heat::SoftwareDeployments
+    properties:
+      config: {get_resource: write_params_master}
+      servers: {get_attr: [mesos_masters, attributes, mesos_server_id]}
+      input_values:
+        MESOS_MASTERS_IPS: {list_join: [' ', {get_attr: [mesos_masters, mesos_master_ip]}]}
+        NUMBER_OF_MASTERS: {get_param: number_of_masters}
+        ZOOKEEPER_IMAGE: { get_param: zookeeper_docker_image}
+        MESOS_MASTER_IMAGE: { get_param: mesos_master_docker_image}
+        MARATHON_IMAGE: { get_param: marathon_docker_image}
+        MARATHON_FRAMEWORK_NAME: { get_param: marathon_framework_name}
+        CHRONOS_IMAGE: { get_param: chronos_docker_image}
+        CHRONOS_FRAMEWORK_NAME: { get_param: chronos_framework_name}
+
+  start_master_containers:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config: {get_file: start-master.sh}
+
+  start_master_containers_deployment:
+    type: OS::Heat::SoftwareDeployments
+    depends_on:
+      - write_params_master_deployment
+    properties:
+      config: {get_resource: start_master_containers}
+      servers: {get_attr: [mesos_masters, attributes, mesos_server_id]}
+
+  mesos_masters:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: {get_param: number_of_masters}
+      resource_def:
+         type: mesosmaster.yaml
+         properties: 
+            server_name: mesos-m%index%
+            ssh_key_name: {get_param: ssh_key_name}
+            server_image: {get_param: server_image}
+            master_flavor: {get_param: master_flavor}
+            network: {get_param: network}
+            security_groups:
+               - {get_resource: secgroup_base}
+               - {get_resource: secgroup_mesos}
+
+
+  ######################################################################
+  #
+  # Mesos slaves. This is a resource group that will initially
+  # create <number_of_slaves> slaves, and needs to be manually scaled.
+  #
+
+  mesos_slaves:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: {get_param: number_of_slaves}
+      resource_def:
+        type: mesosslave.yaml
+        properties:
+          server_name: mesos-s%index%
+          ssh_key_name: {get_param: ssh_key_name}
+          server_image: {get_param: server_image}
+          slave_flavor: {get_param: slave_flavor}
+          network: {get_param: network}
+          mesos_masters_ips: {list_join: [' ', {get_attr: [mesos_masters, mesos_master_ip]}]}
+          mesos_slave_image: { get_param: mesos_slave_docker_image}
+          wait_condition_timeout: {get_param: wait_condition_timeout}
+          executor_registration_timeout: {get_param: executor_registration_timeout}
+
+
+outputs:
+
+  mesos_master_ips:
+    value: {get_attr: [mesos_masters, mesos_master_ip]}
+    description: >
+      This is a list of the  addresses of all the Mesos masters.
+
+
+

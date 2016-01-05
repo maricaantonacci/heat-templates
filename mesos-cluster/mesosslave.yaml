@@ -1,0 +1,140 @@
+heat_template_version: 2014-10-16
+
+description: >
+  This is a nested stack that defines a single Mesos slave, This stack is
+  included by an ResourceGroup resource in the parent template
+  (mesoscluster.yaml).
+
+parameters:
+
+  server_image:
+    type: string
+    default: ubuntu-mesos
+    description: glance image used to boot the server
+
+  server_name:
+    type: string
+
+  slave_flavor:
+    type: string
+    default: small
+    description: flavor to use when booting the server
+
+  ssh_key_name:
+    type: string
+    description: name of ssh key to be provisioned on our server
+
+  wait_condition_timeout:
+    type: number
+    default: 6000
+    description : >
+      timeout for the Wait Conditions
+  
+  executor_registration_timeout:
+    type: string
+    description: >
+      Amount of time to wait for an executor to register with the slave before
+      considering it hung and shutting it down
+    default: 5mins
+
+  # The following are all generated in the parent template.
+  mesos_masters_ips:
+    type: string
+    description: IP addresses of the Mesos master servers.
+  mesos_slave_image:
+    type: string
+    description: Docker image for Mesos slave
+  network:
+    type: string
+    description: Network from which to allocate fixed addresses.
+
+resources:
+
+  slave_wait_handle:
+    type: AWS::CloudFormation::WaitConditionHandle
+
+  slave_wait_condition:
+    type: AWS::CloudFormation::WaitCondition
+    depends_on: mesos_slave
+    properties:
+      Handle: {get_resource: slave_wait_handle}
+      Timeout: {get_param: wait_condition_timeout}
+
+  secgroup_all_open:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      rules:
+        - protocol: icmp
+        - protocol: tcp
+        - protocol: udp
+
+  ######################################################################
+  #
+  # software configs.  these are components that are combined into
+  # a multipart MIME user-data archive.
+  #
+
+  start_slave_container:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: ungrouped
+      config:
+        str_replace:
+          template: {get_file: slave-init.sh}
+          params:
+            "$MESOS_MASTERS_IPS": {get_param: mesos_masters_ips}
+            "$EXECUTOR_REGISTRATION_TIMEOUT": {get_param: executor_registration_timeout}
+            "$MESOS_SLAVE_IMAGE": { get_param: mesos_slave_image}
+
+
+  slave_wc_notify:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: ungrouped
+      config:
+        str_replace:
+          template: |
+            #!/bin/bash -v
+            curl -k -X PUT -H 'Content-Type:application/json' -d '{"Status" : "SUCCESS","Reason" : "Mesos Slave STARTED", "UniqueId" : "Mesos-Slave","Data" : "Slave Started"}' "wait_handle"
+          params:
+            wait_handle: {get_resource: slave_wait_handle}
+
+  mesos_slave_init:
+    type: OS::Heat::MultipartMime
+    properties:
+      parts:
+        - config: {get_resource: start_slave_container}
+        - config: {get_resource: slave_wc_notify}
+
+  ######################################################################
+  #
+  # a single mesos slave.
+  #
+
+  mesos_slave:
+    type: OS::Nova::Server
+    properties:
+      name: {get_param: server_name}
+      image: {get_param: server_image}
+      flavor: {get_param: slave_flavor}
+      key_name: {get_param: ssh_key_name}
+      user_data_format: RAW
+      user_data: {get_resource: mesos_slave_init}
+      networks:
+        - port: {get_resource: mesos_slave_eth0}
+
+  mesos_slave_eth0:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: network}
+      security_groups:
+        - get_resource: secgroup_all_open
+      replacement_policy: AUTO
+
+
+outputs:
+
+  mesos_slave_ip:
+    value: {get_attr: [mesos_slave_eth0, fixed_ips, 0, ip_address]}
+    description: >
+      This is the "private" address of the Mesos agent node.
