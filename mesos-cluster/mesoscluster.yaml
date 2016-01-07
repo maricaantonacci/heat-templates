@@ -50,6 +50,11 @@ parameters:
     type: string
     default: "marica/marathon"
     description: "Docker image for Marathon Service"
+
+  haproxy_marathon_docker_image:
+    type: string
+    default: "marica/haproxy-marathon-bridge"
+    description: "Docker image for haproxy-marathon-bridge"
  
   marathon_framework_name:
     type: string
@@ -113,13 +118,13 @@ resources:
           port_range_min: 2181
           port_range_max: 2181
         - protocol: tcp
-          port_range_min: 2888
-          port_range_max: 2888
+#          port_range_min: 2888
+#          port_range_max: 2888
           remote_mode: remote_group_id
-        - protocol: tcp
-          port_range_min: 3888
-          port_range_max: 3888
-          remote_mode: remote_group_id
+#        - protocol: tcp
+#          port_range_min: 3888
+#          port_range_max: 3888
+#          remote_mode: remote_group_id
         - protocol: tcp
           port_range_min: 5050
           port_range_max: 5050
@@ -234,6 +239,7 @@ resources:
           network: {get_param: network}
           mesos_masters_ips: {list_join: [' ', {get_attr: [mesos_masters, mesos_master_ip]}]}
           mesos_slave_image: { get_param: mesos_slave_docker_image}
+          haproxy_marathon_image: {get_param: haproxy_marathon_docker_image}
           wait_condition_timeout: {get_param: wait_condition_timeout}
           executor_registration_timeout: {get_param: executor_registration_timeout}
 

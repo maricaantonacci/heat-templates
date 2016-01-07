@@ -44,6 +44,9 @@ parameters:
   mesos_slave_image:
     type: string
     description: Docker image for Mesos slave
+  haproxy_marathon_image:
+    type: string
+    description: Docker image for haproxy-marathon-bridge
   network:
     type: string
     description: Network from which to allocate fixed addresses.
@@ -85,6 +88,7 @@ resources:
             "$MESOS_MASTERS_IPS": {get_param: mesos_masters_ips}
             "$EXECUTOR_REGISTRATION_TIMEOUT": {get_param: executor_registration_timeout}
             "$MESOS_SLAVE_IMAGE": { get_param: mesos_slave_image}
+            "$HAPROXY_MARATHON_IMAGE": { get_param: haproxy_marathon_image}
 
 
   slave_wc_notify:
