@@ -20,6 +20,7 @@ zk=${zk::-1}
 sed -i "s/127.0.1.1/$MYIP/" /etc/hosts
 echo $MYIP $(hostname) >> /etc/hosts
 
+# Start Slave docker container
 docker run -d \
 -e MESOS_HOSTNAME=$MYIP \
 -e MESOS_IP=$MYIP \
@@ -33,4 +34,9 @@ docker run -d \
 --name slave --net host --privileged --pid host --restart always \
 $MESOS_SLAVE_IMAGE
 
+# Start haproxy-marathon-bridge container
+docker run -d \
+-e MARATHON_IPS="$MESOS_MASTERS_IPS" \
+--name haproxy-marathon-bridge --net host --pid host --restart always \
+$HAPROXY_MARATHON_IMAGE
 
