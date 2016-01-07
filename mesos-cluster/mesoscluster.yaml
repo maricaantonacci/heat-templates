@@ -5,25 +5,19 @@ parameters:
   ssh_key_name:
     type: string
     description: name of ssh key to be provisioned on our server
-    default: marica
 
   network:
     type: string
     description: uuid/name of a network to use for ip addresses
-    default: fe82ef7b-4bb7-4c1e-b4ec-ec5c1b0c7333
 
   server_image:
     type: string
     default: "Ubuntu 14.04.3 LTS (HEAT)"
     description: glance image used to boot the server
 
-  image: 
-    type: string
-    default: "Ubuntu 14.04.3 LTS"
-
   master_flavor:
     type: string
-    default: medium
+    default: m1.small
     description: flavor to use when booting the server
 
   number_of_masters:
@@ -73,7 +67,7 @@ parameters:
 
   slave_flavor:
     type: string
-    default: small
+    default: m1.small
     description: flavor to use when booting the server
 
   number_of_slaves:
@@ -145,7 +139,7 @@ resources:
     type: OS::Heat::SoftwareConfig
     properties:
       group: script
-      config: {get_file: master-init.sh}
+      config: {get_file: write-master-params.sh}
       inputs:
         - name: MESOS_MASTERS_IPS
           type: String
