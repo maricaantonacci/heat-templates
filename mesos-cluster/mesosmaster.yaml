@@ -1,5 +1,10 @@
 heat_template_version: 2014-10-16
 
+description: >
+  This is a nested stack that defines a single Mesos master. This stack is
+  included by a ResourceGroup resource in the parent template
+  (mesoscluster.yaml).
+
 parameters:
 
   server_image:
@@ -8,7 +13,6 @@ parameters:
 
   master_flavor:
     type: string
-    default: m1.small
     description: flavor to use when booting the server
 
   ssh_key_name:
