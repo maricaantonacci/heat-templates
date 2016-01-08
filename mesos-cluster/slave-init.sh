@@ -18,7 +18,11 @@ zk=${zk::-1}
 
 # Fix /etc/hosts
 sed -i "s/127.0.1.1/$MYIP/" /etc/hosts
-echo $MYIP $(hostname) >> /etc/hosts
+
+grep $MYIP /etc/hosts
+if [ $? -ne 0 ]; then
+  echo $MYIP $(hostname) >> /etc/hosts
+fi
 
 # Start Slave docker container
 docker run -d \
