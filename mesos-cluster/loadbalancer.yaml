@@ -1,0 +1,109 @@
+heat_template_version: 2014-10-16
+
+description: >
+  This is a nested stack that defines a single Mesos slave, This stack is
+  included by an ResourceGroup resource in the parent template
+  (mesoscluster.yaml).
+
+parameters:
+
+  server_image:
+    type: string
+    description: glance image used to boot the server
+
+  server_name:
+    type: string
+
+  server_flavor:
+    type: string
+    description: flavor to use when booting the server
+
+  ssh_key_name:
+    type: string
+    description: name of ssh key to be provisioned on our server
+
+  mesos_masters_ips:
+    type: string
+    description: IP addresses of the Mesos master servers.
+
+  network:
+    type: string
+    description: Network from which to allocate fixed addresses.
+
+  virtual_ip:
+    type: string
+    description: VIP address
+
+  haproxy_marathon_image:
+    type: string
+
+resources:
+
+
+  secgroup_all_open:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      rules:
+        - protocol: icmp
+        - protocol: tcp
+        - protocol: udp
+
+  ######################################################################
+  #
+  # software configs.  these are components that are combined into
+  # a multipart MIME user-data archive.
+  #
+
+  start_lb_container:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: ungrouped
+      config:
+        str_replace:
+          template: {get_file: loadbalancer-init.sh}
+          params:
+            "$MESOS_MASTERS_IPS": {get_param: mesos_masters_ips}
+            "$HAPROXY_MARATHON_IMAGE": { get_param: haproxy_marathon_image}
+            "$VIP": { get_param: virtual_ip }
+
+
+  lb_init:
+    type: OS::Heat::MultipartMime
+    properties:
+      parts:
+        - config: {get_resource: start_lb_container}
+
+  ######################################################################
+  #
+  # a single mesos slave.
+  #
+
+  loadbalancer:
+    type: OS::Nova::Server
+    properties:
+      name: {get_param: server_name}
+      image: {get_param: server_image}
+      flavor: {get_param: server_flavor}
+      key_name: {get_param: ssh_key_name}
+      user_data_format: RAW
+      user_data: {get_resource: lb_init}
+      networks:
+        - port: {get_resource: lb_port }
+
+  lb_port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: network}
+      allowed_address_pairs:
+       - ip_address: {get_param: virtual_ip } 
+      security_groups:
+        - get_resource: secgroup_all_open
+      replacement_policy: AUTO
+
+
+outputs:
+
+  loadbalancer_ip:
+    value: {get_attr: [lb_port, fixed_ips, 0, ip_address]}
+    description: >
+      This is the address of the LoadBalancer  node.
