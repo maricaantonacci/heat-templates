@@ -1,5 +1,11 @@
 heat_template_version: 2014-10-16
 
+description: >
+   This template defines a Mesos Cluster that consist of: 
+   a set of masters running also Marathon and Chronos Frameworks;
+   a set of slaves (with haproxy-marathon-bridge);
+   two Load Balancers (haproxy-marathon-bridge) with a Virtual IP. 
+
 parameters:
 
   ssh_key_name:
@@ -130,6 +136,34 @@ resources:
           port_range_max: 4400
 
 
+
+  vip_port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: network}
+      security_groups:
+        - get_resource: secgroup_mesos
+      replacement_policy: AUTO
+
+
+  loadbalancers:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: 2
+      resource_def:
+        type: loadbalancer.yaml
+        properties:
+          server_name: lb%index%
+          ssh_key_name: {get_param: ssh_key_name}
+          server_image: {get_param: server_image}
+          server_flavor: {get_param: slave_flavor}
+          network: {get_param: network}
+          mesos_masters_ips: {list_join: [' ', {get_attr: [mesos_masters, mesos_master_ip]}]}
+          haproxy_marathon_image: {get_param: haproxy_marathon_docker_image}
+          virtual_ip: {get_attr: [vip_port, fixed_ips, 0, ip_address]}
+
+  
+
   ######################################################################
   #
   # Master SoftwareConfig.
@@ -245,5 +279,33 @@ outputs:
     description: >
       This is a list of the  addresses of all the Mesos masters.
 
+  mesos_slaves_ips:
+    value: {get_attr: [mesos_slaves, mesos_slave_ip]}
+    description: >
+      This is a list of the addresses of all the Mesos slaves
+
+  loadbalancers_vip:
+    value: {get_attr: [vip_port, fixed_ips, 0, ip_address]}
+    description: >
+      This is the Load Balancers Virtual IP 
+
+  cluster_endpoints:
+    description: Cluster endpoints
+    value:
+      "Mesos":
+        str_replace:
+          params:
+            host: { get_attr: [ mesos_masters, resource.0, mesos_master_ip ] }
+          template: "http://host:5050"
+      "Marathon":
+        str_replace:
+          params:
+            host: { get_attr: [ mesos_masters, resource.0, mesos_master_ip ] }
+          template: "http://host:8080"
+      "Chronos":
+        str_replace:
+          params:
+            host: { get_attr: [ mesos_masters, resource.0, mesos_master_ip ] }
+          template: "http://host:4400"
 
 
