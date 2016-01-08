@@ -9,7 +9,6 @@ parameters:
 
   server_image:
     type: string
-    default: ubuntu-mesos
     description: glance image used to boot the server
 
   server_name:
@@ -17,7 +16,6 @@ parameters:
 
   slave_flavor:
     type: string
-    default: small
     description: flavor to use when booting the server
 
   ssh_key_name:
@@ -37,16 +35,18 @@ parameters:
       considering it hung and shutting it down
     default: 5mins
 
-  # The following are all generated in the parent template.
   mesos_masters_ips:
     type: string
     description: IP addresses of the Mesos master servers.
+
   mesos_slave_image:
     type: string
     description: Docker image for Mesos slave
+
   haproxy_marathon_image:
     type: string
     description: Docker image for haproxy-marathon-bridge
+
   network:
     type: string
     description: Network from which to allocate fixed addresses.
@@ -141,4 +141,4 @@ outputs:
   mesos_slave_ip:
     value: {get_attr: [mesos_slave_eth0, fixed_ips, 0, ip_address]}
     description: >
-      This is the "private" address of the Mesos agent node.
+      This is the address of the Mesos agent node.
