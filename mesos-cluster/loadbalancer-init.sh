@@ -25,7 +25,7 @@ idx="${name: -1}"
 
 # Start keepalived
 docker run -d \
--e KEEPALIVED_PRIORITY=$priority -e KEEPALIVED_VIRTUAL_IP=$VIP --net=host --privileged=true marica/keepalived
+-e KEEPALIVED_PRIORITY=$priority -e KEEPALIVED_VIRTUAL_IP=$VIP --net=host --privileged=true indigodatacloud/keepalived
  
 # Start haproxy-marathon-bridge container
 docker run -d \
