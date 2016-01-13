@@ -33,27 +33,27 @@ parameters:
 
   zookeeper_docker_image:
     type: string
-    default: "marica/zookeeper"
+    default: "indigodatacloud/zookeeper"
     description: "Docker image for Zookeeper Service"
 
   mesos_master_docker_image:
     type: string
-    default: "marica/mesos-master"
+    default: "indigodatacloud/mesos-master"
     description: "Docker image for Mesos Master Node(s)"
    
   mesos_slave_docker_image:
     type: string
-    default: "marica/mesos-slave"
+    default: "indigodatacloud/mesos-slave"
     description: "Docker image for Mesos Slave Nodes"
 
   marathon_docker_image:
     type: string
-    default: "marica/marathon"
+    default: "indigodatacloud/marathon"
     description: "Docker image for Marathon Service"
 
   haproxy_marathon_docker_image:
     type: string
-    default: "marica/haproxy-marathon-bridge"
+    default: "indigodatacloud/haproxy-marathon-bridge"
     description: "Docker image for haproxy-marathon-bridge"
  
   marathon_framework_name:
@@ -63,7 +63,7 @@ parameters:
 
   chronos_docker_image:
     type: string
-    default: "marica/chronos"
+    default: "indigodatacloud/chronos"
     description: "Docker image for Chronos Service"
   
   chronos_framework_name:
