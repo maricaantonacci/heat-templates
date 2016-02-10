@@ -3,7 +3,7 @@
 <pre>
 # git clone https://github.com/maricaantonacci/heat-templates.git
 # cd heat-templates/mesos-cluster/
-# heat stack-create -P”ssh_key_name=<KEY_NAME>;master_flavor=<MASTER_FLAVOR>;slave_flavor=<SLAVE_FLAVOR>; server_image=<IMAGE>;network=<NETWORK_ID>" -f mesoscluster.yaml <STACK_NAME>
+# heat stack-create -P"ssh_key_name=$KEY_NAME;master_flavor=$MASTER_FLAVOR;slave_flavor=$SLAVE_FLAVOR; server_image=$IMAGE;network=$NETWORK_ID" -f mesoscluster.yaml <STACK_NAME>
 </pre>
 
 where:
